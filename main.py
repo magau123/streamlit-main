@@ -35,6 +35,11 @@ def get_subdirs(b='.'):
             result.append(bd)
     return result
 
+def get_pre_video_folder():
+    '''
+        Returns the latest folder in a data\videos
+    '''
+    return max(get_subdirs(os.path.join('data', 'videos')), key=os.path.getmtime)
 
 def get_detection_folder():
     '''
@@ -95,7 +100,10 @@ if __name__ == '__main__':
         if uploaded_file is not None:
             is_valid = True
             with st.spinner(text='资源加载中...'):
-                st.sidebar.image(uploaded_file)
+                # 显示缩略图
+                # st.sidebar.image(uploaded_file)
+                # 显示大图
+                st.image(uploaded_file)
                 picture = Image.open(uploaded_file)
                 picture = picture.save(f'data/images/{uploaded_file.name}')
                 opt.source = f'data/images/{uploaded_file.name}'
@@ -106,10 +114,14 @@ if __name__ == '__main__':
         if uploaded_file is not None:
             is_valid = True
             with st.spinner(text='资源加载中...'):
-                st.sidebar.video(uploaded_file)
+                # 显示大视频
+                st.video(uploaded_file)
+                # 显示缩略图
+                # st.sidebar.video(uploaded_file)
                 with open(os.path.join("data", "videos", uploaded_file.name), "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 opt.source = f'data/videos/{uploaded_file.name}'
+
         else:
             is_valid = False
     else:
@@ -138,17 +150,17 @@ if __name__ == '__main__':
     if is_valid:
         print('valid')
         if st.button('开始检测'):
-
             detect(opt)
             if source_index == 0:
                 with st.spinner(text='Preparing Images'):
                     for img in os.listdir(get_detection_folder()):
                         st.image(str(Path(f'{get_detection_folder()}') / img))
-
                     st.balloons()
             else:
                 with st.spinner(text='Preparing Video'):
                     for vid in os.listdir(get_detection_folder()):
+                        print(get_detection_folder())
+                        print(Path(f'{get_detection_folder()}'))
+                        print(str(Path(f'{get_detection_folder()}') / vid))
                         st.video(str(Path(f'{get_detection_folder()}') / vid))
-
                     st.balloons()

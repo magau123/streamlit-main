@@ -30,3 +30,8 @@ streamlit run main.py
 **视频检测**
 
 ![streamlit yolov5 video detection](data/images/video.png)
+
+**未完成部分**
+
+![streamlit yolov5 video detection](data/images/1699697017642.jpg)
+新增按钮或者模块，保留每次检测完成后的记录  点击可以跳转查看之前的视频

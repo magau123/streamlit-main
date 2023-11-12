@@ -168,38 +168,25 @@ class YOLOV5_ONNX(object):
         img_size=(640,640) #图片缩放大小
         # 读取图片
         # src_img=cv2.imread(img_path)
-        start=time.time()
         src_size=src_img.shape[:2]
 
         # 图片填充并归一化
-        img=self.letterbox(src_img,img_size,stride=32)[0]
-
-        # Convert
-        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
-        img = np.ascontiguousarray(img)
-
-
+        img=self.letterbox(src_img, img_size, stride=32)[0]
         # 归一化
         img=img.astype(dtype=np.float32)
         img/=255.0
 
         # # BGR to RGB
-        # img = img[:, :, ::-1].transpose(2, 0, 1)
-        # img = np.ascontiguousarray(img)
-
+        img = img[:, :, ::-1].transpose(2, 0, 1)
+        img = np.ascontiguousarray(img)
         # 维度扩张
-        img=np.expand_dims(img,axis=0)
-        # print('img resuming: ',time.time()-start)
+        img=np.expand_dims(img, axis=0)
         # 前向推理
-        # start=time.time()
         input_feed=self.get_input_feed(img)
         # ort_inputs = {self.onnx_session.get_inputs()[0].name: input_feed[None].numpy()}
         pred = torch.tensor(self.onnx_session.run(None, input_feed)[0])
         results = non_max_suppression(pred, 0.5,0.5)
-        # print('onnx resuming: ',time.time()-start)
         # pred=self.onnx_session.run(output_names=self.output_name,input_feed=input_feed)
-
-
 
         #映射到原始图像
         img_shape=img.shape[2:]
@@ -207,14 +194,10 @@ class YOLOV5_ONNX(object):
         for det in results:  # detections per image
             if det is not None and len(det):
                 det[:, :4] = self.scale_coords(img_shape, det[:, :4],src_size).round()
-        # print(time.time()-start)
         result_img = src_img
         if det is not None and len(det):
             result_img = self.draw(src_img, det)
         return result_img
-
-
-
 
     def plot_one_box(self,x, img, color=None, label=None, line_thickness=None):
         # Plots one bounding box on image img
