@@ -1,4 +1,5 @@
 # yolov5-streamlit
+该版本为yolov5-5.0版本
 
 Deploy [YOLOv5](https://github.com/ultralytics/yolov5/releases/tag/v5.0) detection with [Streamlit](https://github.com/streamlit/streamlit)
 

@@ -3,13 +3,16 @@ from pathlib import Path
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 from onnx_detect import YOLOV5_ONNX
+import subprocess
 from torchvision import models, transforms
 import numpy as np
 import av
 import cv2
 import time
-from detect import detect
-from video_detect import video_detect
+import threading
+from detect import run as detect
+from detect import load_model
+# from video_detect import video_detect
 import os
 import sys
 import argparse
@@ -47,6 +50,19 @@ def get_detection_folder():
     '''
     return max(get_subdirs(os.path.join('runs', 'detect')), key=os.path.getmtime)
 
+def ffmpeg_cover_mp4(input_file,output_file):
+    ffmpeg_command = f"ffmpeg -i {input_file} -vcodec libx265 -preset slow -b:v 2000k -crf 21 -strict -2 {output_file}"
+    subprocess.run(ffmpeg_command, shell=True)
+    st.video(output_file)
+
+def progress_threads():
+    progress_text = "视频推理中，请稍后...."
+    my_bar = st.progress(0, text=progress_text)
+    for percent_complete in range(100):
+        time.sleep(0.2)
+        my_bar.progress(percent_complete + 1, text=progress_text)
+    time.sleep(1)
+    my_bar.empty()
 
 if __name__ == '__main__':
 
@@ -63,7 +79,7 @@ if __name__ == '__main__':
                         default=0.35, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float,
                         default=0.45, help='IOU threshold for NMS')
-    parser.add_argument('--device', default='',
+    parser.add_argument('--device', default= 0,
                         help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', action='store_true',
                         help='display results')
@@ -88,12 +104,30 @@ if __name__ == '__main__':
     parser.add_argument('--exist-ok', action='store_true',
                         help='existing project/name ok, do not increment')
     opt = parser.parse_args()
-    print(opt)
+
 
     source = ("图片检测", "视频检测", "实时检测")
     source_index = st.sidebar.selectbox("选择输入", range(
         len(source)), format_func=lambda x: source[x])
 
+    select_weights = ("YOLOv5s", "YOLOv5l", "YOLOv5x","Prune_ONNX")
+    select_weights_index = st.sidebar.selectbox("选择模型", range(
+        len(select_weights)), format_func=lambda x: select_weights[x])
+    if select_weights_index == 0:
+        opt.weights = "weights/yolov5s.pt"
+    elif select_weights_index == 1:
+        opt.weights = "weights/yolov5l.pt"
+    elif select_weights_index == 3:
+        opt.weights = "weights/yolov5l_prune.onnx"
+    elif select_weights_index == 2:
+        opt.weights = "weights/yolov5x.pt"
+    opt.conf_thres = st.sidebar.slider('阈值', 0.0, 1.0, 0.5)
+    opt.iou_thres = st.sidebar.slider('置信度', 0.0, 1.0, 0.5)
+    print(opt)
+    # model = None
+    # if st.sidebar.button("加载模型"):
+    #     model = load_model(opt)
+    # 判断推理类型，加载数据
     if source_index == 0:
         uploaded_file = st.sidebar.file_uploader(
             "上传图片", type=['png', 'jpeg', 'jpg'])
@@ -121,6 +155,15 @@ if __name__ == '__main__':
                 with open(os.path.join("data", "videos", uploaded_file.name), "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 opt.source = f'data/videos/{uploaded_file.name}'
+                cap = cv2.VideoCapture(opt.source)
+                if not cap.isOpened():
+                    print("Error: Could not open video file.")
+                    exit()
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                duration_in_seconds = total_frames / fps
 
         else:
             is_valid = False
@@ -150,17 +193,31 @@ if __name__ == '__main__':
     if is_valid:
         print('valid')
         if st.button('开始检测'):
-            detect(opt)
+            # if not model:
+            #     st.write("模型未加载，需要先加载模型")
             if source_index == 0:
-                with st.spinner(text='Preparing Images'):
+                infer_thread = threading.Thread(target=detect, args=(opt,))
+                infer_thread.start()
+                # progress_threads()
+                infer_thread.join()
+                with st.spinner(text='推理完成，图片准备中'):
                     for img in os.listdir(get_detection_folder()):
                         st.image(str(Path(f'{get_detection_folder()}') / img))
                     st.balloons()
             else:
-                with st.spinner(text='Preparing Video'):
+                infer_thread = threading.Thread(target=detect, args=(opt,))
+                infer_thread.start()
+                progress_threads()
+                infer_thread.join()
+                with st.spinner(text='推理完成，视频准备中'):
                     for vid in os.listdir(get_detection_folder()):
                         print(get_detection_folder())
                         print(Path(f'{get_detection_folder()}'))
                         print(str(Path(f'{get_detection_folder()}') / vid))
-                        st.video(str(Path(f'{get_detection_folder()}') / vid))
+                        input_file = str(Path(f'{get_detection_folder()}') / vid)
+                        output_file = str(Path(f'{get_detection_folder()}') / "output.mp4")
+                        print(output_file)
+                        ffmpeg_cover_mp4(input_file,output_file)
+                        # ffmpeg_thread = threading.Thread(target=ffmpeg_cover_mp4, args=(input_file,output_file))
+                        # ffmpeg_thread.start()
                     st.balloons()
