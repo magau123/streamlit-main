@@ -27,6 +27,17 @@ RTC_CONFIGURATION = RTCConfiguration(
     }
 )
 
+names: ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
+        'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
+        'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+        'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
+        'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+        'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+        'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
+        'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
+        'hair drier', 'toothbrush']  # class names
+
+
 def get_subdirs(b='.'):
     '''
         Returns all sub-directories in a specific Path
@@ -66,7 +77,7 @@ def progress_threads():
 
 if __name__ == '__main__':
 
-    st.title('YOLOv5 Streamlit App')
+    st.title('YOLOv5 PCB缺陷检测')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str,
@@ -107,10 +118,10 @@ if __name__ == '__main__':
 
 
     source = ("图片检测", "视频检测", "实时检测")
-    source_index = st.sidebar.selectbox("选择输入", range(
+    source_index = st.sidebar.selectbox("选择模式", range(
         len(source)), format_func=lambda x: source[x])
 
-    select_weights = ("YOLOv5s", "YOLOv5l", "YOLOv5x","Prune_ONNX")
+    select_weights = ("YOLOv5s", "YOLOv5l", "YOLOv5x","Prune_ONNX","YOLOv5-XT-BD","YOLOv5-XT-BD-d")
     select_weights_index = st.sidebar.selectbox("选择模型", range(
         len(select_weights)), format_func=lambda x: select_weights[x])
     if select_weights_index == 0:
@@ -121,8 +132,14 @@ if __name__ == '__main__':
         opt.weights = "weights/yolov5l_prune.onnx"
     elif select_weights_index == 2:
         opt.weights = "weights/yolov5x.pt"
-    opt.conf_thres = st.sidebar.slider('阈值', 0.0, 1.0, 0.5)
-    opt.iou_thres = st.sidebar.slider('置信度', 0.0, 1.0, 0.5)
+    elif select_weights_index == 4:
+        opt.weights = "weights/yolol_pcb.pt"
+    elif select_weights_index == 5:
+        opt.weights = "weights/yolol_mypcb.pt"
+    opt.conf_thres = st.sidebar.slider('置信度阈值', 0.0, 1.0, 0.5)
+    opt.iou_thres = st.sidebar.slider('IOU阈值', 0.0, 1.0, 0.5)
+    test_size = st.sidebar.slider('图像尺寸', 480, 1280, 640)
+    test_frame = st.sidebar.slider('检测帧率', 1, 4, 2)
     print(opt)
     # model = None
     # if st.sidebar.button("加载模型"):
@@ -202,7 +219,27 @@ if __name__ == '__main__':
                 infer_thread.join()
                 with st.spinner(text='推理完成，图片准备中'):
                     for img in os.listdir(get_detection_folder()):
-                        st.image(str(Path(f'{get_detection_folder()}') / img))
+                        if img.endswith(".txt"):
+                            result_dict = {}
+                            # read txt method three
+                            f2 = open(str(Path(f'{get_detection_folder()}') / img), "r")
+                            lines = f2.readlines()
+                            # 初始化一个空字典用于存储每个类别的数量
+                            category_counts = {}
+                            # 统计每个类别的数量
+                            for line in lines:
+                                category = line.strip()  # 去除每行末尾的换行符
+                                if category in category_counts:
+                                    category_counts[category] += 1
+                                else:
+                                    category_counts[category] = 1
+                            # 在Streamlit应用程序中显示结果
+                            st.title('类别数量统计')
+                            # 遍历字典，显示每个类别及其数量
+                            for category, count in category_counts.items():
+                                st.write(f"{category}: {count}")
+                        else:
+                            st.image(str(Path(f'{get_detection_folder()}') / img))
                     st.balloons()
             else:
                 infer_thread = threading.Thread(target=detect, args=(opt,))
